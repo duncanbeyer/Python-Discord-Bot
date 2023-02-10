@@ -5,7 +5,6 @@ import random
 import asyncio
 import youtube_dl
 import os
-import responses
 import json
 import shutil
 from bs4 import BeautifulSoup as bs
@@ -16,6 +15,7 @@ from pytube import YouTube
 import threading
 from concurrent.futures import ThreadPoolExecutor
 import yt_dlp
+import urllib.request
 
 
 currently_playing = ""
@@ -45,11 +45,15 @@ def run_discord_bot():
     def fix_dl(newurl):
         # This method takes a fixes url and uses it to find a downloaded mp3, then renames it and places it into
         # the  /files/ folder
+        print(newurl)
+        print(type(newurl))
         for file in os.listdir("./"):
+            print(os.getcwd())
+            print(file)
+            print(len(file))
+            print(type(file))
             if file.endswith("[" + newurl[:11] + "]" + newurl[11:]):
-                # move_to_folder(newurl)
                 os.rename(r"./" + file, r"./files/" + newurl)
-                # os.rename(file, newurl)
                 break
 
     def check_queue(ctx):
@@ -77,9 +81,20 @@ def run_discord_bot():
             check_queue(ctx)
 
     def fix_url(url):
-        # This method takes a youtube url and cuts out the unique 11 character string at the end and returns it and
+        i = len(url)
+        j = 0
+        final = ""
+        while j < i:
+            if url[j:j+3] == "?v=":
+                final = url[j+3:j+14]
+                return final + ".mp3"
+            j += 1
+
+
+
+        # This method takes a youtube url and cuts out the unique 11 character string and returns it and
         # .mp3 on the end.
-        return url[32:] + ".mp3"
+        # return url[32:] + ".mp3"
 
     @client.command()
     async def help(ctx):
@@ -117,6 +132,7 @@ def run_discord_bot():
         # This information is all just used to retrieve the title of the Youtube video from the given link
 
         newurl = fix_url(url)
+        print(newurl)
         queue.add(newurl, video_title, url)
         # The method calls the queue to add a node using the given inputs
         with yt_dlp.YoutubeDL(yd1_opts) as ydl:
@@ -124,7 +140,7 @@ def run_discord_bot():
             print(does_exist(newurl))
             if does_exist(newurl) is False: # if the loop finished and the song did not already exists in the directory
                 # await ctx.send("Hold on while I download " + video_title)
-                await download_yt(url, ydl)
+                download_yt(url, ydl)
                 #The download should take <4 seconds
                 fix_dl(newurl)
                 # fix_dl is called with the fixed url to reformat the name
@@ -165,7 +181,7 @@ def run_discord_bot():
         await play(ctx, url)
     # I use the p command more than play because it is just quicker
 
-    async def download_yt(url, ydl):
+    def download_yt(url, ydl):
         print("in download_yt now")
         print(url)
         ydl.download([url])
@@ -252,6 +268,21 @@ def run_discord_bot():
             newurl = dump.pop().get_newurl()
             move_to_files(newurl)
             i = i - 1
+
+    @client.command()
+    async def print_length(ctx, url):
+        too_big(fix_url(url))
+
+    # def too_big(newurl):
+    #     api_key = "AIzaSyAPHB2eC85bINlQLrjI81zrREkIgpADnFA"
+    #     searchUrl = "https://www.googleapis.com/youtube/v3/videos?id=" + newurl + "&key=" + api_key + "&part=contentDetails"
+    #     req = Request(searchUrl)
+    #     response = urlopen(req).read()
+    #     data = json.loads(response)
+    #     all_data = data['items']
+    #     contentDetails = all_data[0]['contentDetails']
+    #     duration = contentDetails['duration']
+    #     print(duration)
 
     client.run('Insert Token Here')
 
