@@ -2,7 +2,6 @@ import discord
 from discord.ext import commands
 from discord import FFmpegPCMAudio
 import random
-import asyncio
 import youtube_dl
 import os
 import json
@@ -16,11 +15,11 @@ import threading
 from concurrent.futures import ThreadPoolExecutor
 import yt_dlp
 import urllib.request
+import openai
 
 
 currently_playing = ""
 current_channel = ''
-
 
 def run_discord_bot():
 
@@ -39,6 +38,8 @@ def run_discord_bot():
             'preferredquality': '192',
         }],
     }
+    openai.api_key = 'Insert openAI key here'
+
     # These variables are initialized once inside the run method and the never get changed. They
     # are used to communicate with the discord and Youtube APIs.
 
@@ -89,20 +90,47 @@ def run_discord_bot():
                 final = url[j+3:j+14]
                 return final + ".mp3"
             j += 1
-
-
-
         # This method takes a youtube url and cuts out the unique 11 character string and returns it and
         # .mp3 on the end.
         # return url[32:] + ".mp3"
 
     @client.command()
     async def help(ctx):
-        await ctx.send("use ;;play to queue a link from youtube and have the bot play it. Use ;;stop to empty the queue and disconnect the bot. Use ;;skip to skip a song.")
+        await ctx.send("use ;;play to queue a link from youtube and have the bot play it. Use ;;stop to empty the queue and disconnect the bot. Use ;;skip to skip a song. For ChatGPT functions, use ;;chat and your prompt to get a text response, and use ;;image and your prompt to generate an image.")
 
+    @client.command()
+    async def chat(ctx, *args): #This function takes a user prompt and uses openai ChatGPT API to generate a response and sends that.
+        openai.api_key = 'insert openai key here'
+        message = ""
+        for i in args:
+            message += i
+            message += " "
+        response = openai.Completion.create(
+            model="text-davinci-003",
+            prompt=message,
+            temperature=0.6,
+            max_tokens=100
+        )
+        await ctx.send(response["choices"][0]["text"])
+
+    @client.command() #T his command uses ChatGPT to generate an image based on the user prompt and send it in the cannel
+    async def image(ctx, *args):
+        message = ""
+        for i in args:
+            message += i
+            message += " "
+        response = openai.Image.create(
+            prompt = message,
+            n = 1,
+            size="1024x1024"
+        )
+        await ctx.send(response["data"][0]["url"])
 
     @client.command(pass_context=True)
     async def play(ctx, url:str):
+        length = await too_long(ctx, url) # True if the requested song is longer than 15 minutes
+        if length:
+            return
         # This method prepares the bot to play a song if the user who commanded it is in a voice channel.
         global current_channel
         global currently_playing
@@ -125,6 +153,8 @@ def run_discord_bot():
         else: # if the user is not connected to a voice channel
             await ctx.send("The user is not in a voice channel")
             return
+
+
 
         url_opener = urlopen(Request(url, headers={'User-Agent': 'Mozilla'}))
         videoInfo = bs(url_opener, features="html.parser")
@@ -270,19 +300,41 @@ def run_discord_bot():
             i = i - 1
 
     @client.command()
-    async def print_length(ctx, url):
-        too_big(fix_url(url))
+    async def get_duration(ctx, url):
+        ydl_opts = {
+            'format': 'bestaudio/best',
+            'outtmpl': 'tmp/%(id)s.%(ext)s',
+            'noplaylist': True,
+            'quiet': True,
+            'prefer_ffmpeg': True,
+            'audioformat': 'wav',
+            'forceduration': True
+        }
+        sID = "t99ULJjCsaM"
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            dictMeta = ydl.extract_info(
+                "https://www.youtube.com/watch?v={sID}".format(sID=sID),
+                download=True)
+            print(dictMeta['duration'])
+    async def too_long(ctx, url):
+        ydl_opts = {
+            'format': 'bestaudio/best',
+            'outtmpl': 'tmp/%(id)s.%(ext)s',
+            'noplaylist': True,
+            'quiet': True,
+            'prefer_ffmpeg': True,
+            'audioformat': 'wav',
+            'forceduration': True
+        }
+        sID = fix_url(url)[:11]
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            dictMeta = ydl.extract_info(
+                "https://www.youtube.com/watch?v={sID}".format(sID=sID),
+                download=True)
+            if dictMeta['duration'] > 900:
+                await ctx.send("The requested song is too long (over 15 minutes)")
+                return True
+            return False
 
-    # def too_big(newurl):
-    #     api_key = "AIzaSyAPHB2eC85bINlQLrjI81zrREkIgpADnFA"
-    #     searchUrl = "https://www.googleapis.com/youtube/v3/videos?id=" + newurl + "&key=" + api_key + "&part=contentDetails"
-    #     req = Request(searchUrl)
-    #     response = urlopen(req).read()
-    #     data = json.loads(response)
-    #     all_data = data['items']
-    #     contentDetails = all_data[0]['contentDetails']
-    #     duration = contentDetails['duration']
-    #     print(duration)
-
-    client.run('Insert Token Here')
+    client.run('Insert Discord Bot API Key Here')
 
